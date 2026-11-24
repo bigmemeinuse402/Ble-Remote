@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>LG TV BLE Remote</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { background:#141418; color:#fff; font-family:-apple-system,Segoe UI,Roboto,sans-serif; margin:0; padding:14px; display:flex; justify-content:center; }
+    .remote { width:100%; max-width:340px; background:#1e1f26; padding:16px; border-radius:26px; box-shadow:0 12px 30px rgba(0,0,0,0.6); }
+    .header { text-align:center; font-size:13px; letter-spacing:1px; color:#8e92a4; font-weight:700; margin-bottom:8px; }
+    .conn-btn { width:100%; height:42px; border:none; border-radius:12px; background:#0078d7; color:#fff; font-size:14px; font-weight:700; margin-bottom:6px; cursor:pointer; }
+    #status { text-align:center; font-size:12px; color:#aaa; height:18px; margin-bottom:12px; }
+    .row { display:flex; gap:10px; margin-bottom:10px; }
+    button { flex:1; height:48px; border:none; border-radius:14px; background:#2b2d38; color:#fff; font-size:14px; font-weight:700; cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #13141a; }
+    button:active { transform:translateY(2px); box-shadow:0 1px 0 #13141a; filter:brightness(1.25); }
+    .pwr { background:#c0392b; }
+    .on  { background:#218c53; }
+    .off { background:#7f2a24; }
+    .mute { background:#c85a17; }
+    .ok  { background:#0078d7; font-size:17px; }
+    .dpad { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:16px 0; }
+    .dpad button { height:64px; font-size:20px; border-radius:18px; }
+    .hex-row { display:flex; gap:8px; margin-top:14px; }
+    input { flex:1; background:#141418; border:1px solid #383b47; border-radius:12px; color:#fff; padding:0 12px; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div class="remote">
+    <div class="header">LG 50UQ7570PUJ (BLE)</div>
+    <button class="conn-btn" id="connBtn" onclick="connectBLE()">Connect via Bluetooth</button>
+    <div id="status">Disconnected</div>
+
+    <div class="row">
+      <button class="pwr" onclick="send('power')">POWER</button>
+      <button class="on"  onclick="send('on')">ON</button>
+      <button class="off" onclick="send('off')">OFF</button>
+    </div>
+
+    <div class="row">
+      <button onclick="send('hdmi1')">HDMI 1</button>
+      <button onclick="send('hdmi2')">HDMI 2</button>
+      <button onclick="send('hdmi3')">HDMI 3</button>
+    </div>
+
+    <div class="row">
+      <button onclick="send('input')">INPUT</button>
+      <button onclick="send('home')">HOME</button>
+      <button onclick="send('settings')">SETTINGS</button>
+    </div>
+
+    <div class="row">
+      <button onclick="send('vol+')">VOL +</button>
+      <button class="mute" onclick="send('mute')">MUTE</button>
+    </div>
+    <div class="row">
+      <button onclick="send('vol-')">VOL -</button>
+      <button onclick="send('energy')">ENERGY</button>
+    </div>
+
+    <div class="dpad">
+      <div></div>
+      <button onclick="send('up')">▲</button>
+      <div></div>
+      <button onclick="send('left')">◄</button>
+      <button class="ok" onclick="send('ok')">OK</button>
+      <button onclick="send('right')">►</button>
+      <div></div>
+      <button onclick="send('down')">▼</button>
+      <div></div>
+    </div>
+
+    <div class="row">
+      <button onclick="send('back')">BACK</button>
+      <button onclick="send('exit')">EXIT</button>
+    </div>
+
+    <div class="hex-row">
+      <input id="hex" placeholder="Raw hex (e.g. 0x43)">
+      <button style="flex:0 0 85px;" onclick="sendHex()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHAR_UUID    = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleChar = null;
+    const encoder = new TextEncoder();
+
+    async function connectBLE() {
+      try {
+        document.getElementById('status').innerText = 'Scanning...';
+        document.getElementById('status').style.color = '#aaa';
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'LG-TV-Remote' }],
+          optionalServices: [SERVICE_UUID]
+        });
+        device.addEventListener('gattserverdisconnected', () => {
+          bleChar = null;
+          document.getElementById('status').innerText = 'Disconnected';
+          document.getElementById('status').style.color = '#aaa';
+          document.getElementById('connBtn').innerText = 'Reconnect Bluetooth';
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bleChar = await service.getCharacteristic(CHAR_UUID);
+        document.getElementById('status').innerText = 'Connected via BLE';
+        document.getElementById('status').style.color = '#4cd137';
+        document.getElementById('connBtn').innerText = 'Connected';
+      } catch (err) {
+        document.getElementById('status').innerText = 'Connection cancelled/failed';
+      }
+    }
+
+    async function send(cmd) {
+      if (navigator.vibrate) navigator.vibrate(25);
+      if (!bleChar) {
+        document.getElementById('status').innerText = 'Tap Connect first!';
+        document.getElementById('status').style.color = '#ffa502';
+        return;
+      }
+      try {
+        await bleChar.writeValueWithoutResponse(encoder.encode(cmd));
+        document.getElementById('status').innerText = 'Sent: ' + cmd;
+        document.getElementById('status').style.color = '#4cd137';
+      } catch (err) {
+        document.getElementById('status').innerText = 'Send error';
+        document.getElementById('status').style.color = '#ff4757';
+      }
+    }
+
+    function sendHex() {
+      let v = document.getElementById('hex').value.trim();
+      if (!v) return;
+      if (!v.toLowerCase().startsWith('0x')) v = '0x' + v;
+      send(v);
+    }
+  </script>
+</body>
+</html>
